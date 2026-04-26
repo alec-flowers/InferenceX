@@ -1894,3 +1894,10 @@
     - "better performance for dp-attention"
     - "Recipes from https://docs.sglang.io/cookbook/autoregressive/DeepSeek/DeepSeek-V4"
   pr-link: https://github.com/SemiAnalysisAI/InferenceX/pull/1178
+
+- config-keys:
+    - dsv4-fp4-b300-sglang
+  description:
+    - "conc=2048: switch to mega_moe deepep backend with cuda-graph-max-bs 288, chunked-prefill 65536, mem-fraction-static 0.87"
+    - "Recipes from https://docs.sglang.io/cookbook/autoregressive/DeepSeek/DeepSeek-V4"
+  pr-link: https://github.com/SemiAnalysisAI/InferenceX/pull/1179
