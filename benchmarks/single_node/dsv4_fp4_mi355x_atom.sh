@@ -59,7 +59,6 @@ export AITER_LOG_LEVEL=WARNING
 
 # Pull in the AITER pieces that matter for DSv4 FP4 on MI355X:
 #   * origin/main@dde1703e includes ROCm/aiter#2770 a16w4 MoE support.
-#   * ROCm/aiter#2916 fixes mhc_pre allocation device placement.
 #   * ROCm/aiter#2822 speeds up batched MXFP4 GEMM on gfx950.
 #   * ROCm/aiter#2900 fixes MXFP4 scale padding for non-256 K.
 #   * ROCm/aiter#2642 enables/fixes TP=4/8 MXFP4 MoE dispatch.
@@ -67,7 +66,10 @@ export AITER_LOG_LEVEL=WARNING
 #     eligible token counts to FlyDSL FP4 MoE kernels instead of default CK
 #     heuristics when the image has the optional flydsl package.
 #
-# The PRs cherry-pick cleanly over the pinned main SHA as of 2026-04-27.
+# ROCm/aiter#2916 is intentionally not cherry-picked here. That PR branch is
+# based on a divergent fork and can conflict in unrelated test files; the
+# narrow mhc_pre device fix is applied directly to installed aiter below.
+# The non-mHC PRs cherry-pick cleanly over the pinned main SHA as of 2026-04-27.
 # Keep this as a runtime overlay until AMD publishes an ATOM image with these
 # AITER changes baked in; then remove this block and pin that image instead.
 if [ "${AITER_DSV4_PERF_STACK:-1}" = "1" ]; then
@@ -75,7 +77,6 @@ if [ "${AITER_DSV4_PERF_STACK:-1}" = "1" ]; then
     AITER_PERF_DIR=${AITER_PERF_DIR:-/tmp/aiter-dsv4-fp4-perf}
     AITER_PERF_BASE_SHA=${AITER_PERF_BASE_SHA:-dde1703ebfc35d3724e07fc4e6e824023063494c}
     AITER_PERF_PATCH_REFS=(
-        "${AITER_PERF_MHC_DEVICE_REF:-pull/2916/head}"
         "${AITER_PERF_BATCHED_FP4_REF:-pull/2822/head}"
         "${AITER_PERF_MXFP4_SCALE_REF:-pull/2900/head}"
         "${AITER_PERF_MOE_REF:-pull/2642/head}"
@@ -94,7 +95,10 @@ if [ "${AITER_DSV4_PERF_STACK:-1}" = "1" ]; then
         test "$(git rev-parse HEAD)" = "$AITER_PERF_BASE_SHA"
 
         for ref in "${AITER_PERF_PATCH_REFS[@]}"; do
-            git fetch --depth=1 origin "$ref"
+            # Do not use --depth=1 here. A shallow PR-head fetch hides the
+            # parent commit and makes git treat the cherry-pick as add/add
+            # conflicts across unrelated files.
+            git fetch origin "$ref"
             git cherry-pick --no-commit FETCH_HEAD
         done
 
@@ -131,12 +135,10 @@ from pathlib import Path
 import aiter
 
 root = Path(aiter.__file__).resolve().parent
-mhc = (root / "ops" / "mhc.py").read_text()
 moe = (root / "fused_moe.py").read_text()
 fp4_utils = (root / "utility" / "fp4_utils.py").read_text()
 dsv4_tuned_fmoe = Path(os.environ["AITER_DSV4_TUNED_FMOE_FILE"]) if os.environ.get("AITER_DSV4_TUNED_FMOE_FILE") else None
 required = {
-    "mhc device fix": "device = residual.device" in mhc,
     "native MXFP4 MoE skip_inter_quant": "skip_inter_quant" in moe,
     "MXFP4 scaleN_pad fix": "scaleN_pad" in fp4_utils,
     "DSv4 FP4 tuned fMoE config": dsv4_tuned_fmoe is None or dsv4_tuned_fmoe.exists(),
